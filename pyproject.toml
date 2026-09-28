@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "capstone-data4381"
+version = "0.1.0"
+description = "Shared data utilities for the DATA 4381 capstone project"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pillow",
+]
+
+[tool.setuptools]
+packages = ["capstone_data"]

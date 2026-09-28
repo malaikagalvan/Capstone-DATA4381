@@ -145,31 +145,60 @@ def find_split_folder(class_folder, class_name, split):
     return matches[0]
 
 
-if __name__ == "__main__":
-    validate_data_dir()
-    
-    # After validating data dir we wil use find_class_folder to verify all class folders.
+def load_dataset(data_dir=None):
+    """
+    Discover the cleaned FER-2013 dataset.
+
+    Args:
+        data_dir:
+            Optional path to the dataset directory.
+
+            If omitted, the loader uses the project's default
+            data directory.
+
+    Returns:
+        A list of dictionaries, one per image.
+
+        Each dictionary contains:
+            path       -> Path to the image
+            label      -> numeric class label
+            class_name -> human-readable class name
+    """
+
+    if data_dir is None:
+        data_dir = DATA_DIR
+
+    data_dir = Path(data_dir)
+
+    validate_data_dir(data_dir)
+
+    dataset = []
+
     for class_name in CLASS_NAMES:
-        folder = find_class_folder(class_name)
+        folder = find_class_folder(
+            class_name,
+            data_dir
+        )
 
-        # Locate the existing train and test directories
-        train_folder = find_split_folder(
-                folder, class_name, "train"
+        images = find_images(folder)
+
+        label = CLASS_TO_INDEX[class_name]
+
+        for image_path in images:
+            dataset.append(
+                {
+                    "path": image_path,
+                    "label": label,
+                    "class_name": class_name,
+                }
             )
 
-        test_folder = find_split_folder(
-                folder, class_name, "test"
-            )
+    return dataset
 
-        # now collect image paths separately for each partition
-        train_images = find_images(train_folder)
-        test_images = find_images(test_folder)
 
-        print(f"\nClass: {class_name}")
-        print(f"Label: {CLASS_TO_INDEX[class_name]}")
-        print(f"Folder: {folder.name}")
-        print(f"Training images: {len(train_images)}")
-        print(f"Testing images: {len(test_images)}")
-        print(f"Total images: {len(train_images) + len(test_images)}")
+if __name__ == "__main__":
+    dataset = load_dataset()
 
-       
+    print(f"Total images: {len(dataset)}")
+    print(f"First record: {dataset[0]}")
+      
