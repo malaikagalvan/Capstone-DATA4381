@@ -24,6 +24,13 @@ CLASS_TO_INDEX = {
         # Therefor {angry: 0, happy: 1, sad: 2, neutral: 3}
     }
 
+IMAGE_EXTENSIONS = {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".bmp",
+        ".webp",
+    }
 
 def validate_data_dir(data_dir=DATA_DIR):
     '''Verify that the dataset directory exists and is not empty.'''
@@ -51,6 +58,7 @@ def validate_data_dir(data_dir=DATA_DIR):
 
     return data_dir
 
+
 def find_class_folder(class_name, data_dir=DATA_DIR):
     '''Find the cleaned directory by class_name'''
 
@@ -75,6 +83,68 @@ def find_class_folder(class_name, data_dir=DATA_DIR):
     return matches[0]
         
 
+def find_images(folder):
+    '''Find all supported image files inside a class folder.'''
+
+    images = []
+
+    for path in folder.rglob("*"):  #rglob is the same as glob but recursive (it will search
+        # directories and all subdirectories)
+
+        if path.is_file():
+
+            extension = path.suffix.lower()  # return just extension and lower to match 
+            # IMAGE_EXTENSIONS format
+
+            if extension in IMAGE_EXTENSIONS:  # if our selected extension is an IMAGE_EXTENSION
+                # then add it to image list
+                images.append(path)
+
+    if not images:
+        raise ValueError(
+                f"No supported images found in: {folder}"
+            )
+
+    return sorted(images)  # sort for reproducibility
+
+
+def find_split_folder(class_folder, class_name, split):
+    '''Locate a class's cleaned train or test directory.'''
+
+    # verify requested split is valid name
+    split = split.lower()
+
+    if split not in ("train", "test"):
+        raise ValueError(
+                f"Invalid split: '{split}'. Expected 'train' or 'test'."
+            )
+
+    matches = []
+
+    # search all nested directories
+    for path in class_folder.rglob("*"):  # similar to find_class_folder()
+
+        if not path.is_dir():
+            continue
+
+        # force proper naming convention
+        folder_name = path.name.lower()
+
+        # check for train* or test* in directory name (AKA all variants)
+        parts = folder_name.split("_")
+
+        if any(part.startswith(split) for part in parts):
+            matches.append(path)
+
+    if len(matches) != 1:
+        raise ValueError(
+                f"Expected exactly one '{split}' directory for "
+                f"'{class_name}', but found {len(matches)}: {matches}"
+            )
+
+    return matches[0]
+
+
 if __name__ == "__main__":
     validate_data_dir()
     
@@ -82,8 +152,24 @@ if __name__ == "__main__":
     for class_name in CLASS_NAMES:
         folder = find_class_folder(class_name)
 
-        print(f"{class_name}: {folder.name}")
+        # Locate the existing train and test directories
+        train_folder = find_split_folder(
+                folder, class_name, "train"
+            )
+
+        test_folder = find_split_folder(
+                folder, class_name, "test"
+            )
+
+        # now collect image paths separately for each partition
+        train_images = find_images(train_folder)
+        test_images = find_images(test_folder)
+
+        print(f"\nClass: {class_name}")
         print(f"Label: {CLASS_TO_INDEX[class_name]}")
-        print()
+        print(f"Folder: {folder.name}")
+        print(f"Training images: {len(train_images)}")
+        print(f"Testing images: {len(test_images)}")
+        print(f"Total images: {len(train_images) + len(test_images)}")
 
-
+       
