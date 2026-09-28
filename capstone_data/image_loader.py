@@ -70,7 +70,7 @@ def find_class_folder(class_name, data_dir=DATA_DIR):
     # We then create local paths and verify they are directories.
     matches = sorted(
             path
-            for path in data_dir.glob(f"{class_name}_cleaned*")
+            for path in data_dir.glob(f"{class_name}_clean*")
             if path.is_dir()
         )
 
