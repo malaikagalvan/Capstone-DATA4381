@@ -1,2 +1,4 @@
 # Local FER-2013 images
-/data/
+/data/*
+
+!/data/image_loader.md
