@@ -1,3 +1,0 @@
-# Image Loader Documentation
-
-
