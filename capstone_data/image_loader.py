@@ -1,7 +1,9 @@
 from pathlib import Path
 from collections import Counter
 from PIL import Image
+from collections import Counter
 import numpy as np
+import haslib
 
 ROOT = Path(__file__).resolve().parents[1]  # __file__ refers to YOUR current Python module
 # file is converted into a path object, resolve gives abs path and parents[1] moves us out 
@@ -149,6 +151,8 @@ def load_dataset(data_dir=None):
     """
     Discover the cleaned FER-2013 dataset.
 
+    Old train/test dirs are ignored as split boundaries. All images found recursively inside each cleaned class folder are combined into one master dataset.
+
     Args:
         data_dir:
             Optional path to the dataset directory.
@@ -194,6 +198,82 @@ def load_dataset(data_dir=None):
             )
 
     return dataset
+
+
+def count_images_by_class(dataset):
+    """
+    Count the number of images in each class.
+
+    Args:
+        dataset:
+            Dataset records returned from load_dataset()
+
+    Returns:
+        A counter mapping class names to image counts
+    """
+
+    return Counter(
+            item["class_name"]
+            for item in dataset
+        )
+
+
+def exact_image_hash(image_path):
+    '''
+    Create a SHA-256 hash from an image's decoded grayscale pixel data.
+
+    Args:
+        image_path:
+            Path to the image file.
+
+    Returns:
+        A hexadecimal SHA-256 hash string.
+    '''
+
+    with Image.open(image_path) as image:
+        image = image.convert("L")
+        pixels = np.asarray(image)
+
+    return hashlib.sha256(pixels.tobytes()).hexdigest()
+
+
+def find_exact_duplicates(dataset):
+    '''
+    Find exact duplicate images across the pooled dataset.
+
+    Duplicate detection is based on decoded grayscale pixel data rather than
+    filenames or raw file bytes.
+
+    Args:
+        dataset:
+            Dataset records returned by load_dataset()
+
+    Returns:
+        A list of dictionaries describing duplicate image pairs.
+    '''
+
+    seen_hashes = {}
+    duplicates = []
+
+    for item in dataset:
+        image_hash = exact_image_hash(item["path"])
+
+        if image_hash in seen_hashes:
+            original = seen_hashes[image_hash]
+
+            duplicates.append(
+                    {
+                        "original": original,
+                        "duplicate": item,
+                        "label_conflict":
+                            original["label"] != item["label"],
+                    }
+                )
+        else:
+            seen_hashes[image_hash] = item
+
+    return duplicates
+
 
 
 if __name__ == "__main__":
