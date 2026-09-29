@@ -3,7 +3,7 @@ from collections import Counter
 from PIL import Image
 from collections import Counter
 import numpy as np
-import haslib
+import hashlib
 
 ROOT = Path(__file__).resolve().parents[1]  # __file__ refers to YOUR current Python module
 # file is converted into a path object, resolve gives abs path and parents[1] moves us out 
