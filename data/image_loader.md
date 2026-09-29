@@ -3,6 +3,8 @@
 Hey ya'll :) Here's how the `image_loader` module works so that our data and
 image loading is consistent for the full capstone from here on out.
 
+## IMPORTANT! PLEASE FOLLOW THIS GUIDE EXACTLY. IF YOU DOWNLOAD THE DATA A DIFFERENT WAY (LIKE FROM KAGGLE OR ANOTHER GIT REPO) THEN THE DATA WILL BE INCONSISTENT (USE THE NOTION AS THE OFFICIAL CLEANED DATASET)
+
 ### 1. Download the cleaned dataset
 
 Download the cleaned dataset files from the shared Notion for the group.
