@@ -87,7 +87,7 @@ def get_project_paths():
         "data": data_dir,
         "cleaned_data": cleaned_data_dir,
         "duplicates": duplicate_dir,
-    )
+    }
 
 
 
