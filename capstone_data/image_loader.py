@@ -256,7 +256,7 @@ def find_exact_duplicates(dataset):
     seen_hashes = {}
     duplicates = []
 
-    for item in tqdm(dataset, desc=("Checking duplicates"):
+    for item in tqdm(dataset, desc="Checking duplicates"):
         image_hash = exact_image_hash(item["path"])
 
         if image_hash in seen_hashes:
