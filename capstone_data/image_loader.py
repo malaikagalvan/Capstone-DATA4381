@@ -2,9 +2,10 @@ from tqdm.auto import tqdm
 from pathlib import Path
 from collections import Counter
 from PIL import Image
-from collections import Counter
+
 import numpy as np
 import hashlib
+import shutil
 
 ROOT = Path(__file__).resolve().parents[1]  # __file__ refers to YOUR current Python module
 # file is converted into a path object, resolve gives abs path and parents[1] moves us out 
@@ -35,29 +36,80 @@ IMAGE_EXTENSIONS = {
         ".webp",
     }
 
+
+def get_project_paths():
+    '''
+    Return and validate the standard project paths used by the 
+    data pipeline.
+
+    Returns:
+        A dictionary containing commonly used project dirs
+
+    Raises:
+        FileNotFoundError:
+            If the expected data or cleaned-data dir does not exist
+
+        NotADirectoryError:
+            If an expected dir path exists but is not a dir
+    '''
+
+    data_dir = ROOT / "data"
+    cleaned_data_dir = data_dir / "cleaned_data"
+    duplicate_dir = data_dir / "duplicates"
+
+    if not data_dir.exists():
+        raise FileNotFoundError(
+                f"Data directory not found: {data_dir}"
+            )
+
+    if not data_dir.is_dir():
+        raise NotADirectoryError(
+                f"Expected a directory but found: {data_dir}"
+            )
+
+    if not cleaned_data_dir.exists():
+        raise FileNotFoundError(
+                f"Cleaned dataset directory not found: {cleaned_data_dir}"
+            )
+
+    if not cleaned_data_dir.is_dir():
+        raise NotADirectoryError(
+                f"Expected a directory but found: {cleaned_data_dir}"
+            )
+
+    duplicate_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+    return {
+        "root": ROOT,
+        "data": data_dir,
+        "cleaned_data": cleaned_data_dir,
+        "duplicates": duplicate_dir,
+    )
+
+
+
 def validate_data_dir(data_dir=DATA_DIR):
     '''Verify that the dataset directory exists and is not empty.'''
 
-    # Case 1: The path does not exist ya'll.
+    data_dir = Path(data_dir)
+
     if not data_dir.exists():
         raise FileNotFoundError(
-                f"Dataset directory not found: {data_dir}\n"
-                "Download the cleaned FER-2013 dataset and "
-                "place it in the project's data/ directory."
+                f"Data directory not found: {data_dir}"
             )
 
-    # Case 2: The path exists but is not a directory.
     if not data_dir.is_dir():
         raise NotADirectoryError(
-                f"Expected a directory, but found a file: {data_dir}"
+                f"Expected a directory but found: {data_dir}"
             )
 
-    # Case 3: The directory exists but contains nothing.
     if not any(data_dir.iterdir()):
         raise ValueError(
-                f"Dataset directory is empty: {data_dir}\n"
-                "Expected four cleaned expression folders."
-            )
+            f"Data directory is empty: {data_dir}"
+        )
 
     return data_dir
 
@@ -150,16 +202,18 @@ def find_split_folder(class_folder, class_name, split):
 
 def load_dataset(data_dir=None):
     """
-    Discover the cleaned FER-2013 dataset.
+    Discover all cleaned FER-2013 images and return a pooled dataset index.
 
-    Old train/test dirs are ignored as split boundaries. All images found recursively inside each cleaned class folder are combined into one master dataset.
+    Old train/test directories are ignored as split boundaries. All images
+    found recursively inside each cleaned class folder are combined into one
+    master dataset.
 
     Args:
         data_dir:
-            Optional path to the dataset directory.
+            Optional path to the cleaned dataset directory.
 
-            If omitted, the loader uses the project's default
-            data directory.
+            If omitted, the project's standard cleaned-data directory
+            is used.
 
     Returns:
         A list of dictionaries, one per image.
@@ -171,7 +225,8 @@ def load_dataset(data_dir=None):
     """
 
     if data_dir is None:
-        data_dir = DATA_DIR
+        paths = get_project_paths()
+        data_dir = paths["cleaned_data"]
 
     data_dir = Path(data_dir)
 
@@ -182,7 +237,7 @@ def load_dataset(data_dir=None):
     for class_name in CLASS_NAMES:
         folder = find_class_folder(
             class_name,
-            data_dir
+            data_dir,
         )
 
         images = find_images(folder)
@@ -199,6 +254,7 @@ def load_dataset(data_dir=None):
             )
 
     return dataset
+
 
 
 def count_images_by_class(dataset):
@@ -219,7 +275,7 @@ def count_images_by_class(dataset):
         )
 
 
-def exact_image_hash(image_path):
+def _exact_image_hash(image_path):
     '''
     Create a SHA-256 hash from an image's decoded grayscale pixel data.
 
@@ -238,42 +294,212 @@ def exact_image_hash(image_path):
     return hashlib.sha256(pixels.tobytes()).hexdigest()
 
 
-def find_exact_duplicates(dataset):
-    '''
-    Find exact duplicate images across the pooled dataset.
+def handle_duplicates(
+    dataset,
+    data_dir=None,
+    duplicate_dir=None,
+):
+    """
+    Detect and move exact same-class duplicate images, then rebuild
+    the dataset index.
 
-    Duplicate detection is based on decoded grayscale pixel data rather than
-    filenames or raw file bytes.
+    Images are compared using SHA-256 hashes generated from decoded
+    grayscale pixel data.
+
+    Same-class duplicates are moved into a separate duplicate directory.
+
+    Cross-class duplicates are treated as label conflicts and are reported
+    but not moved automatically.
 
     Args:
         dataset:
-            Dataset records returned by load_dataset()
+            Dataset records returned by load_dataset().
+
+        data_dir:
+            Optional path to the cleaned dataset directory.
+
+            If omitted, the project's standard cleaned-data directory
+            is used.
+
+        duplicate_dir:
+            Optional directory where duplicate images should be moved.
+
+            If omitted, the project's standard duplicates directory
+            is used.
 
     Returns:
-        A list of dictionaries describing duplicate image pairs.
-    '''
+        updated_dataset:
+            Rebuilt dataset after duplicate files have been moved.
+
+        results:
+            Dictionary containing duplicate-processing information.
+    """
+
+    if not dataset:
+        raise ValueError(
+            "Dataset is empty. Load the dataset before handling duplicates."
+        )
+
+    paths = get_project_paths()
+
+    if data_dir is None:
+        data_dir = paths["cleaned_data"]
+
+    if duplicate_dir is None:
+        duplicate_dir = paths["duplicates"]
+
+    data_dir = Path(data_dir).resolve()
+    duplicate_dir = Path(duplicate_dir).resolve()
+
+    validate_data_dir(data_dir)
+
+    if duplicate_dir.is_relative_to(data_dir):
+        raise ValueError(
+            "duplicate_dir must be outside the cleaned dataset directory."
+        )
+
+    duplicate_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
     seen_hashes = {}
-    duplicates = []
 
-    for item in tqdm(dataset, desc="Checking duplicates"):
-        image_hash = exact_image_hash(item["path"])
+    same_class_duplicates = []
+    conflicts = []
 
-        if image_hash in seen_hashes:
-            original = seen_hashes[image_hash]
+    print(
+        f"Checking {len(dataset)} images for exact duplicates..."
+    )
 
-            duplicates.append(
-                    {
-                        "original": original,
-                        "duplicate": item,
-                        "label_conflict":
-                            original["label"] != item["label"],
-                    }
-                )
-        else:
+    for item in tqdm(
+        dataset,
+        desc="Checking duplicates",
+    ):
+        image_hash = _exact_image_hash(
+            item["path"]
+        )
+
+        if image_hash not in seen_hashes:
             seen_hashes[image_hash] = item
+            continue
 
-    return duplicates
+        original = seen_hashes[image_hash]
+
+        duplicate_record = {
+            "original": original,
+            "duplicate": item,
+        }
+
+        if original["label"] != item["label"]:
+            conflicts.append(
+                duplicate_record
+            )
+
+        else:
+            same_class_duplicates.append(
+                duplicate_record
+            )
+
+    print()
+    print(
+        f"Same-class duplicates: {len(same_class_duplicates)}"
+    )
+
+    print(
+        f"Cross-class conflicts: {len(conflicts)}"
+    )
+
+    moved = []
+
+    for record in tqdm(
+        same_class_duplicates,
+        desc="Moving duplicates",
+    ):
+        duplicate = record["duplicate"]
+
+        source = Path(
+            duplicate["path"]
+        )
+
+        class_dir = (
+            duplicate_dir
+            / duplicate["class_name"]
+        )
+
+        class_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        destination = (
+            class_dir
+            / source.name
+        )
+
+        counter = 1
+
+        while destination.exists():
+            destination = (
+                class_dir
+                / (
+                    f"{source.stem}_"
+                    f"{counter}"
+                    f"{source.suffix}"
+                )
+            )
+
+            counter += 1
+
+        shutil.move(
+            source,
+            destination,
+        )
+
+        moved.append(
+            {
+                "original": record["original"],
+                "old_path": source,
+                "new_path": destination,
+            }
+        )
+
+    print()
+    print(
+        f"Duplicates moved: {len(moved)}"
+    )
+
+    if conflicts:
+        print()
+        print(
+            "WARNING:",
+            len(conflicts),
+            "cross-class duplicate conflicts require manual review.",
+        )
+
+    print()
+    print("Rebuilding dataset...")
+
+    updated_dataset = load_dataset(
+        data_dir
+    )
+
+    print(
+        f"Dataset rebuilt: {len(updated_dataset)} images"
+    )
+
+    results = {
+        "same_class_duplicates":
+            same_class_duplicates,
+
+        "conflicts":
+            conflicts,
+
+        "moved":
+            moved,
+    }
+
+    return updated_dataset, results
 
 
 
