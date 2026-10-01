@@ -8,7 +8,10 @@ Hey ya'll :) We probably wont keep this log but it's a good thing to show what e
 
 (SHEEHEY - 29SEP26) - IMPORTANT! Please navigate to the data directory and read through the image_loader.md instructions. The image_loader.py code can be found in capstone_data directory. If ya'll have problems using it hit me up for help. This will be suuuuuuuper important for modeling in the future so that we are not all loading images in unique ways (if we do we'll get inconsistent results). So far the image_loader just verifys the data is there but it will be updated to handle all of our image importing needs. I'll make sure there's a mini doc for all the function calls in the package. Cheers :)
 
-(SHEEHEY - 01OCT26) - IMPORTANT! requirments.txt has been added to root. Before building out a notebook or python file run
-'''bash
-python -m pip intall -r requirements.txt
-'''
+(SHEEHEY - 01OCT26) - IMPORTANT! requirements.txt has been added to root.
+
+Before building out a notebook or python file run:
+
+```bash
+python -m pip install -r requirements.txt
+```
