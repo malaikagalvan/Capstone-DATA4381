@@ -38,9 +38,23 @@ cleaned_data/
 ### 3. Install the shared package
 
 After cloning the GitHub repository, open a command line and navigate to the
-root of the repository.
+ROOT of the repository.
 
 Activate whichever Python environment you plan to use for the project.
+
+EXAMPLE:
+
+for me i use a conda environment so i run
+
+```cmd
+conda active DATA4381
+```
+
+then you need to run:
+
+```cmd
+python -m pip install -r requirments.txt
+```
 
 Then run:
 
