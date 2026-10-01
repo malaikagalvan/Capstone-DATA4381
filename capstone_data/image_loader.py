@@ -139,28 +139,41 @@ def find_class_folder(class_name, data_dir=DATA_DIR):
         
 
 def find_images(folder):
-    '''Find all supported image files inside a class folder.'''
+    """Find all model-usable image files inside a class folder."""
+
+    excluded_dirs = {
+        "images removed",
+        "duplicates_found",
+        "duplicates",
+    }
 
     images = []
 
-    for path in folder.rglob("*"):  #rglob is the same as glob but recursive (it will search
-        # directories and all subdirectories)
+    for path in folder.rglob("*"):
 
-        if path.is_file():
+        if not path.is_file():
+            continue
 
-            extension = path.suffix.lower()  # return just extension and lower to match 
-            # IMAGE_EXTENSIONS format
+        if path.suffix.lower() not in IMAGE_EXTENSIONS:
+            continue
 
-            if extension in IMAGE_EXTENSIONS:  # if our selected extension is an IMAGE_EXTENSION
-                # then add it to image list
-                images.append(path)
+        path_parts = {
+            part.lower()
+            for part in path.parts
+        }
+
+        if path_parts & excluded_dirs:
+            continue
+
+        images.append(path)
 
     if not images:
         raise ValueError(
-                f"No supported images found in: {folder}"
-            )
+            f"No supported images found in: {folder}"
+        )
 
-    return sorted(images)  # sort for reproducibility
+    return sorted(images)
+
 
 
 def find_split_folder(class_folder, class_name, split):
@@ -275,232 +288,89 @@ def count_images_by_class(dataset):
         )
 
 
-def _exact_image_hash(image_path):
+def load_image(path):
     '''
-    Create a SHA-256 hash from an image's decoded grayscale pixel data.
-
-    Args:
-        image_path:
-            Path to the image file.
+    Load on FER-2013 image as a normalized NumPy array
 
     Returns:
-        A hexadecimal SHA-256 hash string.
+        np.ndarray with:
+            shape = (48, 48)
+            dtype = float32
+            values in [0.0, 1.0]
+
     '''
 
-    with Image.open(image_path) as image:
+    path = Path(path)
+
+    with Image.open(path) as image:
+        
         image = image.convert("L")
-        pixels = np.asarray(image)
 
-    return hashlib.sha256(pixels.tobytes()).hexdigest()
+        if image.size != (48, 48):
+            raise ValueError(
+                    f"Expected 48x48 image, "
+                    f"but got {image.size}: {path}"
+            )
+
+        image_array = np.asarray(
+                image,
+                dtype=np.float32,
+        )
+
+    image_array /= 255.0
+
+    return image_array
 
 
-def handle_duplicates(
-    dataset,
-    data_dir=None,
-    duplicate_dir=None,
-):
-    """
-    Detect and move exact same-class duplicate images, then rebuild
-    the dataset index.
-
-    Images are compared using SHA-256 hashes generated from decoded
-    grayscale pixel data.
-
-    Same-class duplicates are moved into a separate duplicate directory.
-
-    Cross-class duplicates are treated as label conflicts and are reported
-    but not moved automatically.
+def load_arrays(dataset):
+    '''
+    Load dataset records into NumPy arrays
 
     Args:
         dataset:
-            Dataset records returned by load_dataset().
-
-        data_dir:
-            Optional path to the cleaned dataset directory.
-
-            If omitted, the project's standard cleaned-data directory
-            is used.
-
-        duplicate_dir:
-            Optional directory where duplicate images should be moved.
-
-            If omitted, the project's standard duplicates directory
-            is used.
+            Dataset records returned from load_dataset()
 
     Returns:
-        updated_dataset:
-            Rebuilt dataset after duplicate files have been moved.
+        X:
+            Image array with shape (N, 48, 48)
+            and dtype float32
 
-        results:
-            Dictionary containing duplicate-processing information.
-    """
+        y:
+            Label array with shape (N,)
+            and dtype int64
+    '''
 
     if not dataset:
         raise ValueError(
-            "Dataset is empty. Load the dataset before handling duplicates."
+                "Dataset is empty."
+            )
+
+    num_images = len(dataset)
+
+    X = np.empty(
+            (num_images, 48, 48),
+            dtype=np.float32,
         )
 
-    paths = get_project_paths()
-
-    if data_dir is None:
-        data_dir = paths["cleaned_data"]
-
-    if duplicate_dir is None:
-        duplicate_dir = paths["duplicates"]
-
-    data_dir = Path(data_dir).resolve()
-    duplicate_dir = Path(duplicate_dir).resolve()
-
-    validate_data_dir(data_dir)
-
-    if duplicate_dir.is_relative_to(data_dir):
-        raise ValueError(
-            "duplicate_dir must be outside the cleaned dataset directory."
+    y = np.empty(
+            num_images,
+            dtype=np.int64,
         )
 
-    duplicate_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    seen_hashes = {}
-
-    same_class_duplicates = []
-    conflicts = []
-
-    print(
-        f"Checking {len(dataset)} images for exact duplicates..."
-    )
-
-    for item in tqdm(
-        dataset,
-        desc="Checking duplicates",
+    for index, item in enumerate(
+            tqdm(
+                dataset,
+                desc="Loading images nerds",
+            )
     ):
-        image_hash = _exact_image_hash(
-            item["path"]
+
+        X[index] = load_image(
+                item["path"]
         )
 
-        if image_hash not in seen_hashes:
-            seen_hashes[image_hash] = item
-            continue
+        y[index] = item["label"]
 
-        original = seen_hashes[image_hash]
-
-        duplicate_record = {
-            "original": original,
-            "duplicate": item,
-        }
-
-        if original["label"] != item["label"]:
-            conflicts.append(
-                duplicate_record
-            )
-
-        else:
-            same_class_duplicates.append(
-                duplicate_record
-            )
-
-    print()
-    print(
-        f"Same-class duplicates: {len(same_class_duplicates)}"
-    )
-
-    print(
-        f"Cross-class conflicts: {len(conflicts)}"
-    )
-
-    moved = []
-
-    for record in tqdm(
-        same_class_duplicates,
-        desc="Moving duplicates",
-    ):
-        duplicate = record["duplicate"]
-
-        source = Path(
-            duplicate["path"]
-        )
-
-        class_dir = (
-            duplicate_dir
-            / duplicate["class_name"]
-        )
-
-        class_dir.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        destination = (
-            class_dir
-            / source.name
-        )
-
-        counter = 1
-
-        while destination.exists():
-            destination = (
-                class_dir
-                / (
-                    f"{source.stem}_"
-                    f"{counter}"
-                    f"{source.suffix}"
-                )
-            )
-
-            counter += 1
-
-        shutil.move(
-            source,
-            destination,
-        )
-
-        moved.append(
-            {
-                "original": record["original"],
-                "old_path": source,
-                "new_path": destination,
-            }
-        )
-
-    print()
-    print(
-        f"Duplicates moved: {len(moved)}"
-    )
-
-    if conflicts:
-        print()
-        print(
-            "WARNING:",
-            len(conflicts),
-            "cross-class duplicate conflicts require manual review.",
-        )
-
-    print()
-    print("Rebuilding dataset...")
-
-    updated_dataset = load_dataset(
-        data_dir
-    )
-
-    print(
-        f"Dataset rebuilt: {len(updated_dataset)} images"
-    )
-
-    results = {
-        "same_class_duplicates":
-            same_class_duplicates,
-
-        "conflicts":
-            conflicts,
-
-        "moved":
-            moved,
-    }
-
-    return updated_dataset, results
-
+    return X, y
 
 
 if __name__ == "__main__":
