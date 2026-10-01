@@ -70,9 +70,6 @@ package.
 
 ### 4. Jupyter users
 
-<p align="center">
-  <img src="../misc/doc_pics/install-e.png" width="500" height="300" alt="Data cleaning">
-
 If you are using Jupyter, make sure your notebook is using the same Python
 environment where you installed the package.
 
