@@ -374,176 +374,189 @@ def load_arrays(dataset):
 
 
 def stratified_split_indices(
-        y,
-        train_ratio=0.70,
-        val_ratio=0.00,
-        test_ratio=0.30,
-        seed=42,
-    ):
-    '''
-    Split X and y into stratified train, validation, and test sets.
+    y,
+    train_ratio=0.80,
+    val_ratio=0.10,
+    test_ratio=0.10,
+    seed=42,
+):
+    """
+    Create reproducible, stratified train/validation/test indices.
+
+    Validation is optional. Set val_ratio=0.0 to create
+    only train and test splits.
+
+    Args:
+        y:
+            One-dimensional NumPy array of class labels.
+
+        train_ratio:
+            Fraction of each class used for training.
+
+        val_ratio:
+            Fraction of each class used for validation.
+            May be 0.0.
+
+        test_ratio:
+            Fraction of each class used for testing.
+
+        seed:
+            Seed used by NumPy's random-number generator.
 
     Returns:
         train_indices
         val_indices
         test_indices
-    '''
+    """
 
-    # First lets validate our y data
     if y.ndim != 1:
         raise ValueError(
-                f"Expected y to be one-dimensional, "
-                f"but got shape {y.shape}"
-            )
+            f"Expected y to be one-dimensional, "
+            f"but got shape {y.shape}"
+        )
 
     if len(y) == 0:
         raise ValueError(
-                "Cannot split an empty dataset."
-            )
-
-    # Validate split ratios
-    ratios = (
-            train_ratio,
-            val_ratio,
-            test_ratio,
+            "Cannot split an empty dataset."
         )
 
-    # Zero is allowed to account for not wanting validation set.
+    ratios = (
+        train_ratio,
+        val_ratio,
+        test_ratio,
+    )
+
     if any(ratio < 0 for ratio in ratios):
         raise ValueError(
-                "Split ratios cannot be negative."
-            )
+            "Split ratios cannot be negative."
+        )
 
     if train_ratio <= 0:
         raise ValueError(
-                "train_ratio must be greater than zero."
-            )
+            "train_ratio must be greater than zero."
+        )
 
-    # For our splitter, we always keep a held-out test set
     if test_ratio <= 0:
         raise ValueError(
-                "test_ratio must be greater than zero"
-            )
+            "test_ratio must be greater than zero."
+        )
 
     if not np.isclose(
-            train_ratio + val_ratio + test_ratio,
-            1.0,
+        train_ratio + val_ratio + test_ratio,
+        1.0,
     ):
         raise ValueError(
-                "train_ratio + val_ratio + test_ratio "
-                "must equal 1.0."
-            )
+            "train_ratio + val_ratio + test_ratio "
+            "must equal 1.0."
+        )
 
-    # Reproducible random-num generator
     rng = np.random.default_rng(seed)
 
     train_indices = []
     val_indices = []
     test_indices = []
 
-    # pull out whatever classes exist in y (i.e. 1 (happy), 2(sad)...)
     classes = np.unique(y)
 
-    # split each class independently
     for class_label in classes:
 
         class_indices = np.where(
-                y == class_label
-            )[0]
+            y == class_label
+        )[0]
 
         shuffled_indices = rng.permutation(
-                class_indices
-            )
+            class_indices
+        )
 
         num_samples = len(
-                shuffled_indices
-            )
+            shuffled_indices
+        )
 
         num_train = int(
-                num_samples * train_ratio
-            )
+            num_samples * train_ratio
+        )
 
         num_val = int(
-                num_samples * val_ratio
-            )
+            num_samples * val_ratio
+        )
 
-        # test gets everything else
         num_test = (
-                num_samples - num_train - num_val
-            )
+            num_samples
+            - num_train
+            - num_val
+        )
 
-        # Make sure every requested split receives samples
         if num_train == 0:
             raise ValueError(
-                    f"Class {class_label} has too few samples "
-                    "for the training split."
-                )
+                f"Class {class_label} has too few samples "
+                "for the training split."
+            )
 
         if val_ratio > 0 and num_val == 0:
             raise ValueError(
-                    f"Class {class_label} has too few samples "
-                    "for the validation split."
-                )
+                f"Class {class_label} has too few samples "
+                "for the validation split."
+            )
 
         if test_ratio > 0 and num_test == 0:
             raise ValueError(
-                    f"Class {class_label} has too few samples "
-                    "for the test split."
-                )
+                f"Class {class_label} has too few samples "
+                "for the test split."
+            )
 
-        # Determine boundaries
         train_end = num_train
         val_end = num_train + num_val
 
         train_indices.extend(
-                shuffled_indices[:train_end]
-            )
-
-        val_indices.extend(
-                shuffled_indices[train_end:val_end]
-            )
-
-        test_indices.extend(
-                shuffled_indices[val_end:]
-            )
-
-        # Convert to int NumPy arrays and shuffle each split
-        # dtype=int64 is important when val_indices is empty
-
-        train_indices = np.asarray(
-                train_indices,
-                dtype=np.int64,
-            )
-
-        val_indices = np.asarray(
-                val_indices,
-                dtype=np.int64,
-            )
-
-        test_indices = np.asarray(
-                test_indices,
-                dtype=np.int64,
-            )
-
-        train_indices = rng.permutation(
-                train_indices
-            )
-
-        val_indices = rng.permutation(
-                val_indices
-            )
-
-        test_indices = rng.permutation(
-                test_indices
-            )
-
-        return (
-            train_indices,
-            val_indices,
-            test_indices,
+            shuffled_indices[:train_end]
         )
 
-                    
+        val_indices.extend(
+            shuffled_indices[
+                train_end:val_end
+            ]
+        )
+
+        test_indices.extend(
+            shuffled_indices[val_end:]
+        )
+
+    # IMPORTANT:
+    # Everything below this point is OUTSIDE the class loop.
+
+    train_indices = np.asarray(
+        train_indices,
+        dtype=np.int64,
+    )
+
+    val_indices = np.asarray(
+        val_indices,
+        dtype=np.int64,
+    )
+
+    test_indices = np.asarray(
+        test_indices,
+        dtype=np.int64,
+    )
+
+    train_indices = rng.permutation(
+        train_indices
+    )
+
+    val_indices = rng.permutation(
+        val_indices
+    )
+
+    test_indices = rng.permutation(
+        test_indices
+    )
+
+    return (
+        train_indices,
+        val_indices,
+        test_indices,
+    )                  
+
 def split_dataset(
         X,
         y,
