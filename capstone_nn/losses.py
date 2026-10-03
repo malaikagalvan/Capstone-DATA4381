@@ -79,4 +79,38 @@ def cross_entropy(
     return np.mean(losses)
 
 
+def softmax_cross_entropy_backward(
+        probabilities,
+        labels,
+    ):
+
+        '''
+        comput the gradient of mean cross-entropy loss
+        with respect to the logits
+
+        Args:
+            probabilities:
+                Softmax probabilities with shape
+                (batch_size, num_classes)
+
+            labels:
+                Integer class labels with shape
+                (batch_size)
+
+            Returns:
+                Gradient with respect to logits
+                Shape is the same as probabilities
+            '''
+
+            batch_size = probabilities.shape[0]
+
+            grad_logits[
+                    np.arange(batch_size),
+                    labels,
+                ] -= 1
+
+            grad_logits /= batch_size
+
+            return grad_logits
+
 
