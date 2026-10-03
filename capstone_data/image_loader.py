@@ -373,9 +373,254 @@ def load_arrays(dataset):
     return X, y
 
 
+def stratified_split_indices(
+    y,
+    train_ratio=0.80,
+    val_ratio=0.10,
+    test_ratio=0.10,
+    seed=42,
+):
+    """
+    Create reproducible, stratified train/validation/test indices.
+
+    Validation is optional. Set val_ratio=0.0 to create
+    only train and test splits.
+
+    Args:
+        y:
+            One-dimensional NumPy array of class labels.
+
+        train_ratio:
+            Fraction of each class used for training.
+
+        val_ratio:
+            Fraction of each class used for validation.
+            May be 0.0.
+
+        test_ratio:
+            Fraction of each class used for testing.
+
+        seed:
+            Seed used by NumPy's random-number generator.
+
+    Returns:
+        train_indices
+        val_indices
+        test_indices
+    """
+
+    if y.ndim != 1:
+        raise ValueError(
+            f"Expected y to be one-dimensional, "
+            f"but got shape {y.shape}"
+        )
+
+    if len(y) == 0:
+        raise ValueError(
+            "Cannot split an empty dataset."
+        )
+
+    ratios = (
+        train_ratio,
+        val_ratio,
+        test_ratio,
+    )
+
+    if any(ratio < 0 for ratio in ratios):
+        raise ValueError(
+            "Split ratios cannot be negative."
+        )
+
+    if train_ratio <= 0:
+        raise ValueError(
+            "train_ratio must be greater than zero."
+        )
+
+    if test_ratio <= 0:
+        raise ValueError(
+            "test_ratio must be greater than zero."
+        )
+
+    if not np.isclose(
+        train_ratio + val_ratio + test_ratio,
+        1.0,
+    ):
+        raise ValueError(
+            "train_ratio + val_ratio + test_ratio "
+            "must equal 1.0."
+        )
+
+    rng = np.random.default_rng(seed)
+
+    train_indices = []
+    val_indices = []
+    test_indices = []
+
+    classes = np.unique(y)
+
+    for class_label in classes:
+
+        class_indices = np.where(
+            y == class_label
+        )[0]
+
+        shuffled_indices = rng.permutation(
+            class_indices
+        )
+
+        num_samples = len(
+            shuffled_indices
+        )
+
+        num_train = int(
+            num_samples * train_ratio
+        )
+
+        num_val = int(
+            num_samples * val_ratio
+        )
+
+        num_test = (
+            num_samples
+            - num_train
+            - num_val
+        )
+
+        if num_train == 0:
+            raise ValueError(
+                f"Class {class_label} has too few samples "
+                "for the training split."
+            )
+
+        if val_ratio > 0 and num_val == 0:
+            raise ValueError(
+                f"Class {class_label} has too few samples "
+                "for the validation split."
+            )
+
+        if test_ratio > 0 and num_test == 0:
+            raise ValueError(
+                f"Class {class_label} has too few samples "
+                "for the test split."
+            )
+
+        train_end = num_train
+        val_end = num_train + num_val
+
+        train_indices.extend(
+            shuffled_indices[:train_end]
+        )
+
+        val_indices.extend(
+            shuffled_indices[
+                train_end:val_end
+            ]
+        )
+
+        test_indices.extend(
+            shuffled_indices[val_end:]
+        )
+
+    # IMPORTANT:
+    # Everything below this point is OUTSIDE the class loop.
+
+    train_indices = np.asarray(
+        train_indices,
+        dtype=np.int64,
+    )
+
+    val_indices = np.asarray(
+        val_indices,
+        dtype=np.int64,
+    )
+
+    test_indices = np.asarray(
+        test_indices,
+        dtype=np.int64,
+    )
+
+    train_indices = rng.permutation(
+        train_indices
+    )
+
+    val_indices = rng.permutation(
+        val_indices
+    )
+
+    test_indices = rng.permutation(
+        test_indices
+    )
+
+    return (
+        train_indices,
+        val_indices,
+        test_indices,
+    )                  
+
+def split_dataset(
+        X,
+        y,
+        train_ratio=0.70,
+        val_ratio=0.00,
+        test_ratio=0.30,
+        seed=42,
+    ):
+    '''
+    Split X and y into stratified train, validation,
+    and test sets.
+
+    Set val_ratio=0.00 to disable validation.
+
+    Returns:
+        X_train, y_train,
+        X_val, y_val,
+        X_test, y_test
+    '''
+
+    if len(X) != len(y):
+        raise ValueError(
+                "X and y must contain the same number of samples."
+            )
+
+    (
+        train_indices,
+        val_indices,
+        test_indices,
+    ) = stratified_split_indices(
+            y,
+            train_ratio=train_ratio,
+            val_ratio=val_ratio,
+            test_ratio=test_ratio,
+            seed=seed,
+        )
+
+    X_train = X[train_indices]
+    y_train = y[train_indices]
+
+    X_val = X[val_indices]
+    y_val = y[val_indices]
+
+    X_test = X[test_indices]
+    y_test = y[test_indices]
+
+    return (
+        X_train,
+        y_train,
+        X_val,
+        y_val,
+        X_test,
+        y_test,
+    )
+
+
+
+
+
+
+    
 if __name__ == "__main__":
     dataset = load_dataset()
 
     print(f"Total images: {len(dataset)}")
     print(f"First record: {dataset[0]}")
-      
+

@@ -73,14 +73,13 @@ def rebuild_dataset(
         Dictionary containing the output path, total number
         of copied images, and copied count for each class.
     """
-
-    paths = get_project_paths()
-
     if data_dir is None:
+        paths = get_project_paths()
         data_dir = paths["cleaned_data"]
 
     if output_dir is None:
-        output_dir = paths["data"] / "final"
+        output_dir = Path(data_dir).parent / "final"
+
 
     data_dir = Path(data_dir)
     output_dir = Path(output_dir)

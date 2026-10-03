@@ -12,5 +12,9 @@ dependencies = [
     "pillow",
 ]
 
-[tool.setuptools]
-packages = ["capstone_data"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "capstone_data*",
+    "capstone_nn*",
+]
