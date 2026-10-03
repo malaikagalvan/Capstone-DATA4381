@@ -100,17 +100,22 @@ def softmax_cross_entropy_backward(
             Returns:
                 Gradient with respect to logits
                 Shape is the same as probabilities
-            '''
+        '''
 
-            batch_size = probabilities.shape[0]
+        batch_size = probabilities.shape[0]
 
-            grad_logits[
-                    np.arange(batch_size),
-                    labels,
-                ] -= 1
+        grad_logits = probabilities.copy()
 
-            grad_logits /= batch_size
+        grad_logits[
+                np.arange(batch_size),
+                labels,
+            ] -= 1
 
-            return grad_logits
+        grad_logits /= batch_size
+
+        return grad_logits
+
+
+         
 
 

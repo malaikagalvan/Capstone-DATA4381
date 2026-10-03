@@ -90,4 +90,49 @@ class Dense:
             )
 
 
+    def backward(self, grad_output):
+
+        if self.input is None:
+            raise RuntimeError(
+                    "forward() must be called before backward()."
+                )
+
+        self.grad_weights = (
+                self.input.T
+                @ grad_output
+            )
+
+        self.grad_bias = np.sum(
+                grad_output,
+                axis=0,
+            )
+
+        grad_input = (
+                grad_output
+                @ self.weights.T
+            )
+
+        return grad_input
+
+
+    def update(
+            self,
+            learning_rate,
+        ):
+            if (
+                self.grad_weights is None
+                or self.grad_bias is None
+            ):
+                raise RuntimeError(
+                        "backward() must be called before update()."
+                )
+
+            self.weights -= (
+                    learning_rate * self.grad_weights
+                )
+
+            self.bias -= (
+                    learning_rate * self.grad_bias
+                )
+
 
