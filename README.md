@@ -15,3 +15,5 @@ Before building out a notebook or python file run:
 ```bash
 python -m pip install -r requirements.txt
 ```
+
+(SHEEHEY - 06OCT26) - Great work again on the proposal ya'll. Our next objective will be fixing our imbalancing issue in our dataset. After that we can try to run our baselines again and update metrics. Then we should move into some advanced modeling. I'm gonna look through Zhou's CNN from stratch architecture and see how different it is from the basic NN. Once we have some update metrics i'll start working on that model. 
