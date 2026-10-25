@@ -20,3 +20,5 @@ Hey ya'll :) We probably wont keep this log but it's a good thing to show what e
 (SHEEHEY - 29SEP26) - Updated README.md to have working log. 
 
 (SHEEHEY - 06OCT26) - Great work again on the proposal ya'll. Our next objective will be fixing our imbalancing issue in our dataset. After that we can try to run our baselines again and update metrics. Then we should move into some advanced modeling. I'm gonna look through Zhou's CNN from stratch architecture and see how different it is from the basic NN. Once we have some update metrics i'll start working on that model. 
+
+(BUTLER - 24OCT26) - Added Model_Revisions folder and stored Random Forest models there.
