@@ -38,58 +38,43 @@ IMAGE_EXTENSIONS = {
 
 
 def get_project_paths():
-    '''
-    Return and validate the standard project paths used by the 
-    data pipeline.
+    """
+    Return the standard project paths used by the data pipeline.
 
     Returns:
-        A dictionary containing commonly used project dirs
+        A dictionary containing commonly used project directories.
 
     Raises:
         FileNotFoundError:
-            If the expected data or cleaned-data dir does not exist
+            If the project data directory does not exist.
 
         NotADirectoryError:
-            If an expected dir path exists but is not a dir
-    '''
+            If the data path exists but is not a directory.
+    """
 
     data_dir = ROOT / "data"
-    cleaned_data_dir = data_dir / "cleaned_data"
     duplicate_dir = data_dir / "duplicates"
 
     if not data_dir.exists():
         raise FileNotFoundError(
-                f"Data directory not found: {data_dir}"
-            )
+            f"Data directory not found: {data_dir}"
+        )
 
     if not data_dir.is_dir():
         raise NotADirectoryError(
-                f"Expected a directory but found: {data_dir}"
-            )
-
-    if not cleaned_data_dir.exists():
-        raise FileNotFoundError(
-                f"Cleaned dataset directory not found: {cleaned_data_dir}"
-            )
-
-    if not cleaned_data_dir.is_dir():
-        raise NotADirectoryError(
-                f"Expected a directory but found: {cleaned_data_dir}"
-            )
+            f"Expected a directory but found: {data_dir}"
+        )
 
     duplicate_dir.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+        parents=True,
+        exist_ok=True,
+    )
 
     return {
         "root": ROOT,
         "data": data_dir,
-        "cleaned_data": cleaned_data_dir,
         "duplicates": duplicate_dir,
     }
-
-
 
 def validate_data_dir(data_dir=DATA_DIR):
     '''Verify that the dataset directory exists and is not empty.'''
@@ -114,29 +99,77 @@ def validate_data_dir(data_dir=DATA_DIR):
     return data_dir
 
 
-def find_class_folder(class_name, data_dir=DATA_DIR):
-    '''Find the cleaned directory by class_name'''
+def find_class_folder(
+        class_name,
+        data_dir=DATA_DIR,
+        required=True,
+):
 
-    data_dir = validate_data_dir(data_dir) # first validate the data dir exists
+    """
+    Find the dir for the given class name.
 
-    # next we are going to match class names (i.e angry) and * with glob() means any
-    # variation of this dir will suffice. This is useful because each person downloading
-    # will likely have unique timestamps in their directory names (angry_cleaned-20260927T154645Z-1-001)
-    # We then create local paths and verify they are directories.
-    matches = sorted(
+    Supports both cleaned class dirs such as:
+        angry_clean
+        angry_cleaned
+        angry_cleaned-<timestamp>
+
+    and standard class dirs such as:
+        angry
+
+    Args:
+        class_name:
+            Name of the class to search for.
+
+        data_dir:
+            directory containing the class folders.
+
+        required:
+            If True, raise an error when the class folder is missing.
+            If False, return None when the class folder is missing.
+
+    Returns:
+        Path to the class dir, or None if the class is not
+        required and is not present.
+    """
+
+    data_dir = validate_data_dir(data_dir)
+
+    matches = []
+
+    # first check for an exact folder name:
+    # angry/
+    exact_folder = data_dir / class_name
+
+    if exact_folder.is_dir():
+        matches.append(exact_folder)
+
+    # then check for cleaned folder variants
+    cleaned_matches = [
             path
             for path in data_dir.glob(f"{class_name}_clean*")
             if path.is_dir()
-        )
+    ]
 
-    if len(matches) != 1:
+    matches.extend(cleaned_matches)
+    
+    if len(matches) == 0:
+        if required:
+            raise ValueError(
+                    f"No folder found for '{class_name}'"
+                    f"in {data_dir}"
+            )
+
+        return None
+
+    if len(matches) > 1:
         raise ValueError(
-                f"Expected exactly one folder for '{class_name}', "
+                f"Expected one folder for '{class_name}', "
                 f"but found {len(matches)}: {matches}"
             )
 
     return matches[0]
-        
+
+
 
 def find_images(folder):
     """Find all model-usable image files inside a class folder."""
@@ -212,21 +245,75 @@ def find_split_folder(class_folder, class_name, split):
 
     return matches[0]
 
-
-def load_dataset(data_dir=None):
+def list_datasets():
     """
-    Discover all cleaned FER-2013 images and return a pooled dataset index.
+    Discover available dataset directories inside the project's data folder.
 
-    Old train/test directories are ignored as split boundaries. All images
-    found recursively inside each cleaned class folder are combined into one
-    master dataset.
+    A dataset directory must contain at least one recognized class folder
+    directly inside it.
+
+    Returns:
+        A sorted list of available dataset names.
+    """
+
+    paths = get_project_paths()
+    data_dir = paths["data"]
+
+    datasets = []
+
+    for path in data_dir.iterdir():
+
+        if not path.is_dir():
+            continue
+
+        if path.name == "duplicates":
+            continue
+
+        has_class_folder = any(
+            (path / class_name).is_dir()
+            for class_name in CLASS_NAMES
+        )
+
+        if has_class_folder:
+            datasets.append(
+                path.name
+            )
+
+    return sorted(datasets)
+
+def load_dataset(
+    datasets="final",
+):
+    """
+    Discover images from one or more selected datasets and return a
+    Dataset sources may contain either cleaned class directories such as:
+
+        angry_cleaned/
+        happy_cleaned/
+
+    or standard class directories such as:
+
+        angry/
+        happy/
+
+    Old train/test directories inside class folders are ignored as split
+    boundaries because image discovery is recursive.
 
     Args:
-        data_dir:
-            Optional path to the cleaned dataset directory.
+        datasets:
+            Name of a dataset directory or a list of dataset directories
+            located inside the project's data directory.
 
-            If omitted, the project's standard cleaned-data directory
-            is used.
+            Examples:
+                "cleaned_data"
+
+                "aug_data_v1"
+
+                [
+                    "cleaned_data",
+                    "aug_data_v1",
+                    "aug_data_v2",
+                ]
 
     Returns:
         A list of dictionaries, one per image.
@@ -235,39 +322,97 @@ def load_dataset(data_dir=None):
             path       -> Path to the image
             label      -> numeric class label
             class_name -> human-readable class name
+            source     -> dataset the image came from
     """
 
-    if data_dir is None:
-        paths = get_project_paths()
-        data_dir = paths["cleaned_data"]
+    paths = get_project_paths()
+    data_root = paths["data"]
 
-    data_dir = Path(data_dir)
+    # Allow one dataset name to be supplied as a string.
+    if isinstance(datasets, str):
+        datasets = [datasets]
 
-    validate_data_dir(data_dir)
+    # Make sure a valid collection was supplied.
+    if not isinstance(datasets, (list, tuple)):
+        raise TypeError(
+            "datasets must be a dataset name or "
+            "a list/tuple of dataset names."
+        )
+
+    if not datasets:
+        raise ValueError(
+            "At least one dataset must be selected."
+        )
+
+    # Remove repeated dataset names while keeping their order.
+    datasets = list(
+        dict.fromkeys(datasets)
+    )
+
+    available_datasets = list_datasets()
 
     dataset = []
 
-    for class_name in CLASS_NAMES:
-        folder = find_class_folder(
-            class_name,
-            data_dir,
-        )
+    for source_name in datasets:
 
-        images = find_images(folder)
-
-        label = CLASS_TO_INDEX[class_name]
-
-        for image_path in images:
-            dataset.append(
-                {
-                    "path": image_path,
-                    "label": label,
-                    "class_name": class_name,
-                }
+        if source_name not in available_datasets:
+            raise ValueError(
+                f"Unknown dataset '{source_name}'. "
+                f"Available datasets: "
+                f"{available_datasets}"
             )
 
-    return dataset
+        source_dir = (
+            data_root
+            / source_name
+        )
 
+        validate_data_dir(
+            source_dir
+        )
+
+        # The original cleaned dataset should contain
+        # every class.
+        #
+        # Augmented datasets are allowed to contain only
+        # selected classes.
+        require_all_classes = (
+            source_name == "final"
+        )
+
+        for class_name in CLASS_NAMES:
+
+            folder = find_class_folder(
+                class_name,
+                source_dir,
+                required=require_all_classes,
+            )
+
+            # Augmentation datasets may intentionally
+            # omit certain classes, such as neutral.
+            if folder is None:
+                continue
+
+            images = find_images(
+                folder
+            )
+
+            label = CLASS_TO_INDEX[
+                class_name
+            ]
+
+            for image_path in images:
+
+                dataset.append(
+                    {
+                        "path": image_path,
+                        "label": label,
+                        "class_name": class_name,
+                        "source": source_name,
+                    }
+                )
+
+    return dataset
 
 
 def count_images_by_class(dataset):
