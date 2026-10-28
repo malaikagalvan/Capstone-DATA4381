@@ -17,7 +17,6 @@ CLASS_NAMES = (
         "angry",
         "happy",
         "sad",
-        "neutral",
     )
 
 # next we will map consistent labels for every model
@@ -25,7 +24,7 @@ CLASS_NAMES = (
 CLASS_TO_INDEX = {
         name: index
         for index, name in enumerate(CLASS_NAMES)
-        # Therefor {angry: 0, happy: 1, sad: 2, neutral: 3}
+        # Therefor {angry: 0, happy: 1, sad: 2,}
     }
 
 IMAGE_EXTENSIONS = {
