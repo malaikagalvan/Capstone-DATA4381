@@ -13,6 +13,12 @@ ROOT = Path(__file__).resolve().parents[1]  # __file__ refers to YOUR current Py
 
 DATA_DIR = ROOT / "data" # the divisor element for a path object joins 'data'
 
+# Add path for augmented data
+AUGMENTED_DATA_DIR = (
+        DATA_DIR
+        / "augmented_data"
+)
+
 CLASS_NAMES = (
         "angry",
         "happy",
@@ -244,41 +250,85 @@ def find_split_folder(class_folder, class_name, split):
 
     return matches[0]
 
+
 def list_datasets():
     """
-    Discover available dataset directories inside the project's data folder.
+    Discover all model-ready datasets inside the project's data dir.
 
-    A dataset directory must contain at least one recognized class folder
-    directly inside it.
+    A dir is considered a model-ready dataset when it directly 
+    contains one folder for every configured feature class. 
 
     Returns:
-        A sorted list of available dataset names.
+        A dictionary mapping dataset names to their dirs
+
+        Example:
+            {
+                "final": Path(".../data/final"),
+                "aug_data_v1": Path(
+                    ".../data/augmented_data/aug_data_v1"
+                ),
+            }
     """
 
     paths = get_project_paths()
     data_dir = paths["data"]
 
-    datasets = []
+    datasets = {}
 
-    for path in data_dir.iterdir():
+    # These contain working/intermediate data and should never
+    # be treated as model-ready datasets
+    excluded_dirs = {
+            "cleaned_data",
+            "duplicates",
+        }
+
+    for path in data_dir.rglob("*"):
 
         if not path.is_dir():
             continue
 
-        if path.name == "duplicates":
+        relative_parts = {
+                part.lower()
+                for part in path.relative_to(
+                    data_dir
+                ).parts
+        }
+
+        #ignor anything living inside excluded dirs
+        if relative_parts & excluded_dirs:
             continue
 
-        has_class_folder = any(
-            (path / class_name).is_dir()
-            for class_name in CLASS_NAMES
+        # A model-ready dataset must directly contain
+        # every configured class
+        has_all_classes = all(
+                (
+                    path
+                    / class_name
+                ).is_dir()
+                for class_name in CLASS_NAMES
         )
 
-        if has_class_folder:
-            datasets.append(
-                path.name
+        if not has_all_classes:
+            continue
+
+        dataset_name = path.name
+
+        # Names are what load_dataset() uses, so duplicate
+        # names would be ambiguous
+        if dataset_name in datasets:
+            raise ValueError(
+                    f"Duplicate dataset name "
+                    f"'{dataset_name}' found:\n"
+                    f"{datasets[dataset_name]}\n"
+                    f"{path}"
             )
 
-    return sorted(datasets)
+        datasets[
+                dataset_name
+        ] = path
+
+    return datasets
+
 
 def load_dataset(
     datasets="final",
@@ -361,10 +411,7 @@ def load_dataset(
                 f"{available_datasets}"
             )
 
-        source_dir = (
-            data_root
-            / source_name
-        )
+        source_dir = available_datasets[source_name]
 
         validate_data_dir(
             source_dir
@@ -412,6 +459,7 @@ def load_dataset(
                 )
 
     return dataset
+
 
 
 def count_images_by_class(dataset):
