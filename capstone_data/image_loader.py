@@ -545,16 +545,20 @@ def load_image(path, resize=False):
         
         image = image.convert("L")
 
-        if image.size != (48, 48):
-            raise ValueError(
-                    f"Expected 48x48 image, "
-                    f"but got {image.size}: {path}"
-            )
+        if image.size != (48,48):
 
-        image = image.resize(
-                (48,48),
-                resample=Image.Resampling.BILINEAR,
-        )
+            if resize:
+                image = image.resize(
+                        (48,48),
+                        resample=Image.Resampling.BILINEAR,
+                )
+
+            else:
+                raise ValueError(
+                        f"Expected 48x48 image, "
+                        f"but got {image.size}: {path}"
+                )
+
 
         image_array = np.asarray(
                 image,
