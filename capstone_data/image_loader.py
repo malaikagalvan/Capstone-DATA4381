@@ -527,7 +527,7 @@ def count_images_by_class(dataset):
         )
 
 
-def load_image(path):
+def load_image(path, resize=False):
     '''
     Load on FER-2013 image as a normalized NumPy array
 
@@ -551,6 +551,11 @@ def load_image(path):
                     f"but got {image.size}: {path}"
             )
 
+        image = image.resize(
+                (48,48),
+                resample=Image.Resampling.BILINEAR,
+        )
+
         image_array = np.asarray(
                 image,
                 dtype=np.float32,
@@ -561,7 +566,7 @@ def load_image(path):
     return image_array
 
 
-def load_arrays(dataset):
+def load_arrays(dataset, resize=False):
     '''
     Load dataset records into NumPy arrays
 
@@ -603,8 +608,13 @@ def load_arrays(dataset):
             )
     ):
 
-        X[index] = load_image(
-                item["path"]
+        X_v1, y_v1 = loader.load_arrays(
+                datasets["aug_data_v1"]["train"]
+        )
+
+        X_v3, y_v3 = loader.load_arrays(
+                datasets["aug_data_v3"]["train"],
+                resize=True,
         )
 
         y[index] = item["label"]
