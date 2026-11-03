@@ -332,6 +332,7 @@ def list_datasets():
 
 def load_dataset(
     datasets="final",
+    split=None,
 ):
     """
     Discover images from one or more selected datasets and return a
@@ -373,6 +374,17 @@ def load_dataset(
             class_name -> human-readable class name
             source     -> dataset the image came from
     """
+
+    valid_splits = {"train", "validation", "test"}
+
+    if split is not None:
+        split = split.lower()
+
+        if split not in valid_splits:
+            raise ValueError(
+                    f"Invalid split: {split}, "
+                    f"Expected one of {valid_splits}."
+            )
 
     paths = get_project_paths()
     data_root = paths["data"]
@@ -439,9 +451,44 @@ def load_dataset(
             if folder is None:
                 continue
 
-            images = find_images(
-                folder
-            )
+            
+            # Check whether the class contains split folders.
+            split_folders = {
+                name: folder / name
+                for name in ("train", "validation", "test")
+                if (folder / name).is_dir()
+            }
+
+            if split_folders:
+
+                # Prevent accidentally combining partitions.
+                if split is None:
+                    raise ValueError(
+                        f"{source_name}/{class_name} "
+                        "contains train/validation/test folders. "
+                        "Specify the split explicitly."
+                    )
+
+                if split not in split_folders:
+                    raise FileNotFoundError(
+                        f"Missing '{split}' folder in {folder}"
+                    )
+
+                image_folder = split_folders[split]
+
+            else:
+
+                # Preserve support for unsplit datasets.
+                if split is not None:
+                    raise ValueError(
+                        f"{source_name}/{class_name} "
+                        f"has no '{split}' partition."
+                    )
+
+                image_folder = folder
+
+            images = find_images(image_folder)
+
 
             label = CLASS_TO_INDEX[
                 class_name
