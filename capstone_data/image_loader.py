@@ -612,13 +612,9 @@ def load_arrays(dataset, resize=False):
             )
     ):
 
-        X_v1, y_v1 = loader.load_arrays(
-                datasets["aug_data_v1"]["train"]
-        )
-
-        X_v3, y_v3 = loader.load_arrays(
-                datasets["aug_data_v3"]["train"],
-                resize=True,
+        X[index] = load_image(
+                item["path"],
+                resize=resize,
         )
 
         y[index] = item["label"]
