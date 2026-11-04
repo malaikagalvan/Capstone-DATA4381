@@ -23,6 +23,8 @@ Hey ya'll :) We probably wont keep this log but it's a good thing to show what e
 
 (BUTLER - 24OCT26) - Added Model_Revisions folder and stored Random Forest models there.
 
-(GALVAN - 26-OCT26) - Added facial_landmarks folder where the code to locate and extract facial features is
+(MALAIKA - 26-OCT26) - Added facial_landmarks folder where the code to locate and extract facial features is
 
 (FRANKLIN - 01-NOV-26) - Added a class-weighting experiment to compare standard and weighted cross-entropy on the original dataset. The goal is to see whether class weighting can help address class imbalance and improve Angry and Sad predictions, and compare it with augmentation to see if a simpler approach could achieve similar results. This could also provide useful insights for our final capstone report.
+
+(MALAIKA - 11-NOV26) Added cnn_models folder where resnet34 is
